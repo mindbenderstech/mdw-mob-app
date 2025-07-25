@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
-import { View, Text, FlatList, Image, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { useEffect, useState, useRef } from 'react';
+import { View, Text, FlatList, Image, StyleSheet, ActivityIndicator, TouchableOpacity, Animated, Modal, ScrollView } from 'react-native';
 import { getAllArticles, getArticlesByCategory } from '../api/news';
 import { useRouter } from 'expo-router';
-import { Picker } from '@react-native-picker/picker';
 import { useLanguage } from '../context/LanguageContext';
+import Icon from 'react-native-vector-icons/MaterialIcons';
 
 type Article = {
   id: number;
@@ -24,8 +24,12 @@ export default function HomeScreen() {
   const [crime, setCrime] = useState<Article[]>([]);
   const [entertainment, setEntertainment] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
-
   const [category, setCategory] = useState('');
+  const [isCategoryModalVisible, setCategoryModalVisible] = useState(false);
+  const [isLanguageModalVisible, setLanguageModalVisible] = useState(false);
+
+  // Animated value for the sidebar
+  const sidebarAnim = useRef(new Animated.Value(-300)).current; // Initial position offscreen (to the left)
 
   useEffect(() => {
     const fetchArticles = async () => {
@@ -36,7 +40,6 @@ export default function HomeScreen() {
         const data = await getArticlesByCategory(lang, category);
         setTrending(data);
       } else {
-
         const [all, s, c, e] = await Promise.all([
           getAllArticles(lang),
           getArticlesByCategory(lang, 'sports'),
@@ -108,37 +111,85 @@ export default function HomeScreen() {
     );
   };
 
+  // Function to open the category sidebar
+  const openCategorySidebar = () => {
+    Animated.timing(sidebarAnim, {
+      toValue: 0, // Move the sidebar to its original position
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+    setCategoryModalVisible(true);
+  };
+
+  // Function to close the category sidebar
+  const closeCategorySidebar = () => {
+    Animated.timing(sidebarAnim, {
+      toValue: -300, // Move the sidebar offscreen
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+    setCategoryModalVisible(false);
+  };
+
+  // Function to open the language sidebar from left to right
+  const openLanguageSidebar = () => {
+    Animated.timing(sidebarAnim, {
+      toValue: 0, // Move the sidebar to its original position (from left)
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+    setLanguageModalVisible(true);
+  };
+
+  // Function to close the language sidebar
+  const closeLanguageSidebar = () => {
+    Animated.timing(sidebarAnim, {
+      toValue: -300, // Move the sidebar offscreen (to the left)
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+    setLanguageModalVisible(false);
+  };
+
   return (
     <View style={styles.container}>
 
       <View style={styles.headerContainer}>
         <Text style={styles.header}>The Headline World</Text>
+        <View style={styles.headerButtons}>
+          <TouchableOpacity style={styles.searchButton} onPress={() => console.log('Search Pressed')}>
+            <Icon name="search" size={30} color="#3955e6ff" />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.loginButton} onPress={() => console.log('Login Pressed')}>
+            <Icon name="account-circle" size={30} color="#3955e6ff" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.dropdownContainer}>
-        <Picker
-          selectedValue={category}
-          onValueChange={(itemValue) => setCategory(itemValue)}
-          style={styles.picker}
-        >
-          <Picker.Item label="Home" value="" />
-          <Picker.Item label="Business" value="business" />
-          <Picker.Item label="Sports" value="sports" />
-          <Picker.Item label="Crime" value="crime" />
-          <Picker.Item label="Entertainment" value="entertainment" />
-          <Picker.Item label="Politics" value="politics" />
-          <Picker.Item label="Spiritual" value="astro" />
-        </Picker>
+        {/* Scrollable Buttons for Home, Categories, and Language */}
+        <ScrollView horizontal={true} style={styles.scrollContainer}>
+          {/* Home Button */}
+          <TouchableOpacity style={styles.pickerContainer} onPress={() => setCategory('')}>
+            <Text style={styles.pickerText}>Home</Text>
+          </TouchableOpacity>
 
-        <Picker
-          selectedValue={language}
-          onValueChange={(itemValue) => setLanguage(itemValue)}
-          style={styles.picker}
-        >
-          {availableLanguages.map((lang) => (
-            <Picker.Item key={lang} label={lang.charAt(0).toUpperCase() + lang.slice(1)} value={lang} />
-          ))}
-        </Picker>
+          {/* Categories Button */}
+          <TouchableOpacity
+            style={styles.pickerContainer}
+            onPress={openCategorySidebar}
+          >
+            <Text style={styles.pickerText}>Categories</Text>
+          </TouchableOpacity>
+
+          {/* Language Button */}
+          <TouchableOpacity
+            style={styles.pickerContainer}
+            onPress={openLanguageSidebar} // Open language sidebar
+          >
+            <Text style={styles.pickerText}>Language</Text>
+          </TouchableOpacity>
+        </ScrollView>
       </View>
 
       <FlatList
@@ -146,7 +197,7 @@ export default function HomeScreen() {
         ListHeaderComponent={() => {
           return (
             <>
-              {category === "" && (
+              {category === '' && (
                 <>
                   {renderFirstArticle(trending[0])}
                   {renderArticleGrid(trending, false)}
@@ -172,6 +223,54 @@ export default function HomeScreen() {
         renderItem={null}
         showsVerticalScrollIndicator={false}
       />
+
+      {/* Categories Sidebar */}
+      {isCategoryModalVisible && (
+        <Animated.View style={[styles.sidebar, { transform: [{ translateX: sidebarAnim }] }]}>
+          <TouchableOpacity style={styles.closeButton} onPress={closeCategorySidebar}>
+            <Icon name="close" size={30} color="#fff" />
+          </TouchableOpacity>
+          <FlatList
+            data={['business', 'sports', 'crime', 'entertainment', 'politics']}
+            keyExtractor={(item) => item}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={styles.modalItem}
+                onPress={() => {
+                  setCategory(item);
+                  closeCategorySidebar();
+                }}
+              >
+                <Text style={styles.modalItemText}>{item}</Text>
+              </TouchableOpacity>
+            )}
+          />
+        </Animated.View>
+      )}
+
+      {/* Language Sidebar */}
+      {isLanguageModalVisible && (
+        <Animated.View style={[styles.sidebar, { transform: [{ translateX: sidebarAnim }] }]}>
+          <TouchableOpacity style={styles.closeButton} onPress={closeLanguageSidebar}>
+            <Icon name="close" size={30} color="#fff" />
+          </TouchableOpacity>
+          <FlatList
+            data={availableLanguages}
+            keyExtractor={(item) => item}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={styles.modalItem}
+                onPress={() => {
+                  setLanguage(item);
+                  closeLanguageSidebar();
+                }}
+              >
+                <Text style={styles.modalItemText}>{item}</Text>
+              </TouchableOpacity>
+            )}
+          />
+        </Animated.View>
+      )}
     </View>
   );
 }
@@ -180,35 +279,71 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   headerContainer: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    padding: 10,
-    paddingTop: 40,
-    backgroundColor: '#fff',
-    zIndex: 10,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    padding: 5,
+    paddingTop: 40,
+    backgroundColor: 'transparent',
+    zIndex: 10,
   },
   header: { fontSize: 24, fontWeight: 'bold' },
+  headerButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  searchButton: {
+    backgroundColor: 'transparent',
+    paddingVertical: 5,
+    paddingHorizontal: 5,
+    borderRadius: 20,
+    marginRight: 10,
+    borderColor: '#3955e6ff',
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  loginButton: {
+    backgroundColor: 'transparent',
+    paddingVertical: 5,
+    paddingHorizontal: 5,
+    borderRadius: 20,
+    borderColor: '#3955e6ff',
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+  },
   sectionHeader: { fontSize: 20, fontWeight: 'bold', marginTop: 20, marginBottom: 10 },
 
-  // Dropdown styles
   dropdownContainer: {
-    marginTop: 80,
-    marginBottom: 20,
+    marginBottom: 5,
     paddingHorizontal: 15,
-    flexDirection: 'row',  // Align dropdowns horizontally
-    justifyContent: 'space-between',  // Space between dropdowns
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    alignItems: 'center',
   },
-  picker: {
-    height: 50,
-    width: '45%',  // Make each dropdown take up half of the screen width
+  scrollContainer: {
+    marginBottom: 10,
+    paddingVertical: 5,
+  },
+  pickerContainer: {
+    marginRight: 10,
     borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 10,
+    borderColor: '#3955e6ff',
+    borderRadius: 20,
+    backgroundColor: '#fff',
     paddingHorizontal: 10,
-    backgroundColor: '#f4f4f4',
-    marginVertical: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: 40,
+    width: 140,
+  },
+  pickerText: {
+    fontSize: 16,
   },
 
   firstArticleCard: {
@@ -228,4 +363,33 @@ const styles = StyleSheet.create({
   articleTextContainer: { flex: 1, padding: 8 },
   articleTitle: { fontSize: 16, fontWeight: 'bold' },
   articleDate: { fontSize: 12, color: 'gray' },
+
+  sidebar: {
+    position: 'absolute',
+    left: 0,
+    top: 80,
+    bottom: 0,
+    width: '50%',
+    backgroundColor: '#a3b4a1ff',
+    paddingTop: 100,
+    paddingHorizontal: 0,
+    zIndex: 20,
+    borderRadius: 10,
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 50,
+    right: 10,
+  },
+  modalItem: {
+    padding: 15,
+    marginLeft: 20,
+    marginBottom: 10,
+    backgroundColor: '#f4f4f4',
+    borderRadius: 5,
+    width: '80%',
+  },
+  modalItemText: { fontSize: 16 },
+  modalContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'white' },
+  modalTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 20 },
 });
